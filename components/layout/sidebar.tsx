@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { mainNavItems } from "@/components/layout/main-nav-items";
 import { LogoutIcon } from "@/components/shared/icons";
@@ -14,6 +14,12 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const activeHref = useMemo(() => pathname, [pathname]);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    router.push("/sign-in");
+    onClose?.();
+  };
 
   return (
     <aside
@@ -52,7 +58,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         <div className="mt-auto">
           <button
             type="button"
-            onClick={() => window.alert("Logged out")}
+            onClick={handleLogout}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition hover:border-foreground"
           >
             <LogoutIcon className="h-4 w-4" />
