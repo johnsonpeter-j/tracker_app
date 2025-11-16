@@ -1,54 +1,17 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { PlusIcon } from "@/components/shared/icons";
 import { toast } from "react-toastify";
+import { createDepartment, deleteDepartment, getDepartments, updateDepartment } from "@/api/department.api";
 
 type Department = {
   id: string;
   name: string;
   description: string;
   members: number;
+  createdBy: string;
 };
-
-const INITIAL_DEPARTMENTS: Department[] = [
-  {
-    id: "DEP-01",
-    name: "Operations",
-    description: "Keeps day-to-day business running smoothly across the org.",
-    members: 18,
-  },
-  {
-    id: "DEP-02",
-    name: "Finance",
-    description: "Budget planning, payroll, and long-term financial forecasting.",
-    members: 12,
-  },
-  {
-    id: "DEP-03",
-    name: "People",
-    description: "Hiring, onboarding, and supporting our people initiatives.",
-    members: 0,
-  },
-  {
-    id: "DEP-04",
-    name: "Product",
-    description: "Owns the roadmap and partners with engineering to ship value.",
-    members: 22,
-  },
-  {
-    id: "DEP-05",
-    name: "Design",
-    description: "Crafts user experiences, prototypes, and brand guidelines.",
-    members: 9,
-  },
-  {
-    id: "DEP-06",
-    name: "Security",
-    description: "Protects our infrastructure, data, and compliance posture.",
-    members: 14,
-  },
-];
 
 type DepartmentDialogMode = "create" | "edit" | "view" | "confirm-delete";
 
@@ -60,12 +23,34 @@ const EMPTY_DEPARTMENT = {
 };
 
 export default function DepartmentsPage() {
-  const [departments, setDepartments] = useState(INITIAL_DEPARTMENTS);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<DepartmentDialogMode>("create");
   const [formValues, setFormValues] = useState(EMPTY_DEPARTMENT);
   const [targetDepartment, setTargetDepartment] = useState<Department | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadDepartments = async () => {
+      try {
+        const data = await getDepartments();
+        if (alive) {
+          setDepartments(data);
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Couldn’t load departments, please try again.");
+      }
+    };
+
+    loadDepartments();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const filteredDepartments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -112,7 +97,7 @@ export default function DepartmentsPage() {
     resetForm();
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (dialogMode === "view") {
@@ -126,11 +111,20 @@ export default function DepartmentsPage() {
         return;
       }
 
-      setDepartments((current) =>
-        current.filter((department) => department.id !== targetDepartment.id),
-      );
-      toast.success(`${targetDepartment.name} deleted.`);
-      handleDialogClose();
+      try {
+
+        const data = await deleteDepartment(targetDepartment.id);
+        setDepartments((current) =>
+          current.filter((department) => department.id !== targetDepartment.id),
+        );
+        toast.success(`${targetDepartment.name} deleted.`);
+      } catch (error) {
+        console.error(error);
+        toast.error("Couldn’t delete departments, please try again.");
+      } finally {
+        handleDialogClose();
+      }
+
       return;
     }
 
@@ -141,29 +135,43 @@ export default function DepartmentsPage() {
     }
 
     if (dialogMode === "edit" && formValues.id) {
-      setDepartments((current) =>
-        current.map((department) =>
-          department.id === formValues.id
-            ? {
+      try {
+        const data = await updateDepartment(formValues.id, { name: trimmedName, description: formValues.description.trim() || "" });
+        setDepartments((current) =>
+          current.map((department) =>
+            department.id === formValues.id
+              ? {
                 ...department,
                 name: trimmedName,
                 description: formValues.description.trim() || "",
               }
-            : department,
-        ),
-      );
-    } else {
-      const nextDepartment: Department = {
-        id:
-          dialogMode === "edit" && formValues.id
-            ? formValues.id
-            : `DEP-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
-        name: trimmedName,
-        description: formValues.description.trim() || "",
-        members: dialogMode === "edit" ? formValues.members : 0,
-      };
+              : department,
+          ),
 
-      setDepartments((current) => [nextDepartment, ...current]);
+        );
+        toast.success("Department updated successfully.");
+
+      } catch (error) {
+        console.error(error);
+        toast.error("Couldn’t update departments, please try again.");
+      }
+    } else {
+      try {
+        const data = await createDepartment({ name: trimmedName, description: formValues.description.trim() || "" });
+        const nextDepartment: Department = {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          members: data.members,
+          createdBy: data.createdBy,
+        };
+        setDepartments((current) => [nextDepartment, ...current]);
+        toast.success("Department Created successfully.");
+
+      } catch (error) {
+        console.error(error);
+        toast.error("Couldn’t create departments, please try again.");
+      }
     }
 
     handleDialogClose();
@@ -174,8 +182,7 @@ export default function DepartmentsPage() {
   const handleDelete = (department: Department) => {
     if (department.members > 0) {
       toast.error(
-        `${department.name} still has ${department.members} member${
-          department.members > 1 ? "s" : ""
+        `${department.name} still has ${department.members} member${department.members > 1 ? "s" : ""
         }. Remove them before deleting.`,
       );
       return;
@@ -222,49 +229,55 @@ export default function DepartmentsPage() {
           </svg>
         </div>
         <section className="grid gap-4">
-          {filteredDepartments.map((department) => (
-            <article
-              key={department.id}
-              className="flex flex-col gap-3 rounded-3xl border border-border bg-surface/70 p-5 shadow-sm transition hover:border-foreground/40 hover:shadow-lg"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold text-foreground">{department.name}</h3>
-                    <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-[color:var(--color-muted)]">
-                      {department.members} members
-                    </span>
+          {filteredDepartments.length === 0 ? (
+            <div className="rounded-3xl border border-border bg-surface/70 p-6 text-center text-sm text-[color:var(--color-muted)]">
+              No departments found.
+            </div>
+          ) : (
+            filteredDepartments.map((department) => (
+              <article
+                key={department.id}
+                className="flex flex-col gap-3 rounded-3xl border border-border bg-surface/70 p-5 shadow-sm transition hover:border-foreground/40 hover:shadow-lg"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-foreground">{department.name}</h3>
+                      <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-[color:var(--color-muted)]">
+                        {department.members} members
+                      </span>
+                    </div>
+                    <p className="text-sm text-[color:var(--color-muted)]">
+                      {department.description || "No description provided yet."}
+                    </p>
                   </div>
-                  <p className="text-sm text-[color:var(--color-muted)]">
-                    {department.description || "No description provided yet."}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-muted)] sm:justify-end">
+                    <button
+                      type="button"
+                      className="rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:border-foreground"
+                      onClick={() => openDialog("view", department)}
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:border-foreground"
+                      onClick={() => openDialog("edit", department)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-border bg-background px-3 py-2 font-medium text-[color:#d14343] transition hover:border-[color:#d14343]"
+                      onClick={() => handleDelete(department)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-muted)] sm:justify-end">
-                  <button
-                    type="button"
-                    className="rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:border-foreground"
-                    onClick={() => openDialog("view", department)}
-                  >
-                    View
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-border bg-background px-3 py-2 font-medium text-foreground transition hover:border-foreground"
-                    onClick={() => openDialog("edit", department)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-border bg-background px-3 py-2 font-medium text-[color:#d14343] transition hover:border-[color:#d14343]"
-                    onClick={() => handleDelete(department)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))
+          )}
         </section>
       </div>
       <button

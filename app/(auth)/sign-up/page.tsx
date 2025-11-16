@@ -1,8 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type ChangeEvent, type FormEvent } from "react";
+import { toast } from "react-toastify";
+import { signUp } from "@/api/auth.api";
+import type { ApiError } from "@/api/http";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { useAuth } from "@/components/providers/auth-provider";
 
 type Field = "name" | "email" | "password" | "confirmPassword";
 
@@ -11,6 +16,8 @@ type SignUpErrors = Partial<Record<Field, string>>;
 const emailRegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpPage() {
+  const router = useRouter();
+  const { setAuth } = useAuth();
   const [values, setValues] = useState({
     name: "",
     email: "",
@@ -27,7 +34,7 @@ export default function SignUpPage() {
     setErrors((current) => ({ ...current, [field]: undefined }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors: SignUpErrors = {};
@@ -60,9 +67,18 @@ export default function SignUpPage() {
     }
 
     setIsSubmitting(true);
-    window.setTimeout(() => {
+
+    try {
+      const response = await signUp(values);
+      setAuth(response);
+      toast.success("Welcome aboard! Your account is ready.");
+      router.push("/home");
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      toast.error(apiError.message ?? "Unable to create account.");
+    } finally {
       setIsSubmitting(false);
-    }, 600);
+    }
   };
 
   return (

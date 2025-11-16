@@ -1,12 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AppBar } from "@/components/layout/app-bar";
+import { useAuth } from "@/components/providers/auth-provider";
+import { verifyToken } from "@/api/auth.api";
+import { getStoredToken, type ApiError } from "@/api/http";
+import { toast } from "react-toastify";
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { clearAuth, setAuth } = useAuth();
+
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      const token = getStoredToken();
+      if (!token) {
+        clearAuth();
+        return;
+      }
+
+      try {
+        const response = await verifyToken({ token });
+        if (!alive) return;
+        if (!response.valid) {
+          clearAuth();
+          return;
+        }
+
+        if (response.user) {
+          setAuth({ token: response.token ?? token, user: response.user });
+        }
+      } catch (error: unknown) {
+        if (!alive) return;
+        const apiError = error as ApiError;
+        toast.error(apiError.message ?? "Session expired. Please sign in again.");
+        clearAuth();
+      }
+    };
+
+    run();
+
+    return () => {
+      alive = false;
+    };
+  }, [clearAuth, setAuth]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">

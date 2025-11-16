@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { ChevronDownIcon, PlusIcon } from "@/components/shared/icons";
 import { toast } from "react-toastify";
+import { SelectOptionType } from "@/types/common.types";
+import { getDepartments } from "@/api/department.api";
 
 type Role = "Super Admin" | "Admin" | "Employee";
 
@@ -75,11 +77,10 @@ const INITIAL_USERS: User[] = [
   },
 ];
 
-const DEPARTMENTS = ["All", "Operations", "Finance", "People", "Product", "Design", "Security"];
 
-const ROLES: Role[] = ["Admin", "Employee", "Super Admin"];
 
-const DEFAULT_DEPARTMENT = DEPARTMENTS[1] ?? "Operations";
+const ROLES: Role[] = ["Admin", "Employee"];
+
 
 const formatDate = (value: Date) =>
   value.toLocaleDateString("en-US", {
@@ -106,7 +107,7 @@ const EMPTY_USER = {
   id: "",
   name: "",
   email: "",
-  department: DEFAULT_DEPARTMENT,
+  department: "",
   role: "Employee" as Role,
   joinedAt: "",
   avatarInitials: "",
@@ -114,18 +115,55 @@ const EMPTY_USER = {
 
 export default function UsersPage() {
   const [users, setUsers] = useState(INITIAL_USERS);
-  const [departmentFilter, setDepartmentFilter] = useState<string>("All");
+
+  const [departmentList, setDepartmentList] = useState<SelectOptionType[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadDepartments = async () => {
+      try {
+        const data = await getDepartments();
+        if (alive) {
+          const deptList = data?.map(deptItem=>{
+            return {
+              key: deptItem.id,
+              value: deptItem.name
+            }
+          })
+          setDepartmentList(deptList);
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Couldn’t load departments, please try again.");
+      }
+    };
+
+    loadDepartments();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const [departmentFilter, setDepartmentFilter] = useState<string>(departmentList[0]?.key ?? "all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<UserDialogMode>("create");
   const [formValues, setFormValues] = useState(EMPTY_USER);
   const [targetUser, setTargetUser] = useState<User | null>(null);
 
   const filteredUsers = useMemo(() => {
-    if (departmentFilter === "All") {
+    if (departmentFilter === "all") {
       return users;
     }
 
-    return users.filter((user) => user.department === departmentFilter);
+    const selectedDepartment = departmentList.find((department) => department.key === departmentFilter);
+
+    if (!selectedDepartment) {
+      return users;
+    }
+
+    return users.filter((user) => user.department === selectedDepartment.value);
   }, [departmentFilter, users]);
 
   const resetForm = () => {
@@ -271,22 +309,14 @@ export default function UsersPage() {
               onChange={(event) => setDepartmentFilter(event.target.value)}
               className="w-full appearance-none rounded-xl border border-border bg-input px-4 py-3 pr-12 text-sm text-foreground outline-none transition focus:border-foreground focus:ring-0"
             >
-              {DEPARTMENTS.map((department) => (
-                <option key={department} value={department}>
-                  {department === "All" ? "All departments" : department}
+              {[{key: "all", value: "All departments"}, ...departmentList].map((department) => (
+                <option key={department.key} value={department.key}>
+                  {department.value === "All" ? "All departments" : department.value}
                 </option>
               ))}
             </select>
             <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--color-muted)]" />
           </div>
-          <button
-            type="button"
-            onClick={() => openDialog("create")}
-            className="ml-auto inline-flex items-center gap-2 rounded-full border border-border bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add user
-          </button>
         </div>
         <section className="grid gap-4">
           {filteredUsers.map((user) => (
@@ -353,6 +383,14 @@ export default function UsersPage() {
           ))}
         </section>
       </div>
+      <button
+        type="button"
+        onClick={() => openDialog("create")}
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-foreground text-background shadow-lg transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+        aria-label="Add user"
+      >
+        <PlusIcon className="h-6 w-6" />
+      </button>
       {isDialogOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-border bg-background p-6 text-left shadow-xl">
@@ -445,9 +483,9 @@ export default function UsersPage() {
                       className="w-full appearance-none rounded-xl border border-border bg-input px-4 py-3 pr-12 text-sm text-foreground outline-none transition focus:border-foreground focus:ring-0"
                       disabled={isReadOnly}
                     >
-                      {DEPARTMENTS.filter((dept) => dept !== "All").map((department) => (
-                        <option key={department} value={department}>
-                          {department}
+                      {departmentList.filter((department) => department.key !== "all").map((department) => (
+                        <option key={department.key} value={department.value}>
+                          {department.value}
                         </option>
                       ))}
                     </select>

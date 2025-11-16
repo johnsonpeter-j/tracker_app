@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { signIn } from "@/api/auth.api";
+import { useAuth } from "@/components/providers/auth-provider";
+import { toast } from "react-toastify";
+import { ApiError } from "@/api/http";
 
 type SignInErrors = Partial<Record<"email" | "password", string>>;
 
@@ -11,6 +15,8 @@ const emailRegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignInPage() {
   const router = useRouter();
+  const { setAuth } = useAuth();
+
   const [values, setValues] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<SignInErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +28,7 @@ export default function SignInPage() {
     setErrors((current) => ({ ...current, [field]: undefined }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors: SignInErrors = {};
@@ -46,10 +52,17 @@ export default function SignInPage() {
 
     setIsSubmitting(true);
 
-    window.setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const response = await signIn(values);
+      setAuth(response);
+      toast.success("Welcome aboard! Your account is ready.");
       router.push("/home");
-    }, 600);
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      toast.error(apiError.message ?? "Unable to create account.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,13 +71,13 @@ export default function SignInPage() {
       subtitle="Sign in to manage your team tasks."
       footer={
         <>
-          Don&apos;t have an account?{" "}
+          {/* Don&apos;t have an account?{" "}
           <Link
             href="/sign-up"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Create one
-          </Link>
+          </Link> */}
         </>
       }
     >

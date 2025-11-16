@@ -4,6 +4,7 @@ import "./globals.css";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ToastContainer } from "react-toastify";
+import { AuthProvider } from "@/components/providers/auth-provider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -25,10 +26,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} antialiased font-sans`}>
         <ThemeProvider>
-          <div className="flex min-h-screen flex-col bg-background text-foreground transition-colors">
-            {children}
-            <ToastContainer position="top-right" theme="dark" newestOnTop />
-          </div>
+          <AuthProvider>
+            <div className="flex min-h-screen flex-col bg-background text-foreground transition-colors">
+              {children}
+              <ToastContainer position="top-right" theme="dark" newestOnTop />
+            </div>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

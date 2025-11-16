@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { mainNavItems } from "@/components/layout/main-nav-items";
 import { LogoutIcon } from "@/components/shared/icons";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -15,8 +16,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const activeHref = useMemo(() => pathname, [pathname]);
   const router = useRouter();
+  const { clearAuth } = useAuth();
 
   const handleLogout = () => {
+    clearAuth();
     router.push("/sign-in");
     onClose?.();
   };
